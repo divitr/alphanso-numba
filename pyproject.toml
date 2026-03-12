@@ -35,6 +35,7 @@ alphanso = "alphanso.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
+exclude = ["tests*", "example_usage*"]
 
 [tool.setuptools.package-data]
 alphanso = ["data/atomic_data/*", "data/sources_overrides.yaml"]

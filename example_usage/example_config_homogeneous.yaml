@@ -1,0 +1,13 @@
+# Example ALPHANSO Configuration File for a Homogeneous Calculation
+
+# - name: Name of the calculation
+# - calc_type: Type of calculation to perform
+# - matdef: Material definition dictionary ({zaid: mass_fraction})
+# - decay_data_dir: [optional] Path to decay data
+
+name: "Example Homogeneous Source"
+calc_type: "homogeneous"
+matdef:
+  Pu-239: 0.3
+  Pu-238: 0.2
+  Be-9: 0.5

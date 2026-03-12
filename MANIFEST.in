@@ -1,0 +1,2 @@
+recursive-include alphanso/data/atomic_data *
+include alphanso/data/sources_overrides.yaml

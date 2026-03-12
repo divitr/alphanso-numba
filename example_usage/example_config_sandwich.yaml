@@ -1,0 +1,17 @@
+name: "Multi-Layer Sandwich Example"
+calc_type: "sandwich"
+source_matdef:
+  "Pu-238": 1.0
+source_density: 19.8
+target_matdef:
+  "Be-9": 1.0
+intermediate_layers:
+  - matdef: { "C-13": 1.0 }
+    density: 2.26
+    thickness: 1.0e-4
+  - matdef: { "Al-27": 1.0 }
+    density: 2.70
+    thickness: 1.0e-4
+# num_alpha_groups: 15000
+# min_alpha_energy: 1e-11
+# max_alpha_energy: 15

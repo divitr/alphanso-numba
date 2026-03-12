@@ -1,0 +1,19 @@
+an_xs:
+  use_sources_tape_zaids:
+    # C-13
+    - 6013
+    # Mg-24/25/26
+    - 12024
+    - 12025
+    - 12026
+    # Al-27
+    - 13027
+    # Si-28/29/30
+    - 14028
+    - 14029
+    - 14030
+  tape: an_xs/sources/tape3
+
+stopping:
+  default_sources_for_z_gt: 92
+  tape: stopping/sources/tape2

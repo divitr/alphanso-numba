@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alphanso"
+version = "1.0.0"
+description = "Alpha-neutron source calculation package"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "BSD-3-Clause"}
+authors = [
+    {name = "Divit Rawal", email = "divit.rawal@berkeley.edu"},
+    {name = "Anthony J. Nelson", email = "nelson254@llnl.gov"},
+    {name = "William Zywiec", email = "zywiec1@llnl.gov"},
+    {name = "Daniel Siefman", email = "daniel.siefman@berkeley.edu"},
+]
+keywords = ["alpha-neutron", "nuclear", "neutron-source", "physics"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+dependencies = [
+    "numpy",
+    "pandas",
+    "scipy",
+    "PyYAML>=6.0.2",
+    "platformdirs>=3.0",
+]
+
+[project.scripts]
+alphanso = "alphanso.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+
+[tool.setuptools.package-data]
+alphanso = ["data/atomic_data/*", "data/sources_overrides.yaml"]
+
+[project.urls]
+Repository = "https://github.com/alphanso-org/alphanso"
+Issues = "https://github.com/alphanso-org/alphanso/issues"

@@ -1,0 +1,15 @@
+{
+  "files": {
+    "atomic_data": "atomic_data.json",
+    "abundances": "natural_abundances.json"
+  },
+  "extraction_info": {
+    "version": "RTOSim Existing Data",
+    "source": "RTOSim utils.py abundancesList and natWeights",
+    "extraction_date": "2025-07-22T13:18:23.378176",
+    "description": "Atomic data extracted from existing RTOSim installation"
+  },
+  "element_count": 118,
+  "isotope_count": 3444,
+  "natural_abundance_elements": 84
+}

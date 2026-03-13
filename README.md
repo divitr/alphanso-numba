@@ -10,7 +10,7 @@ Open-source Python package for modeling ($\alpha$,n) neutron source terms.
 
 Legacy ($\alpha$,n) codes such as SOURCES-4C are written in FORTRAN 77 with nuclear data from the 1980s and have not been maintained since 2002. ALPHANSO provides a modern, open-source replacement built on up-to-date evaluated nuclear data libraries stored in the GNDS format. It covers all naturally occurring target nuclides and agrees well with experimental data.
 
-Applications include nuclear safeguards, radioactive waste management, nuclear astrophysics, and dark matter detection experiments.
+Applications include reactor design, nuclear safeguards, radioactive waste management, nuclear astrophysics, and dark matter detection experiments.
 
 ## Key Features
 

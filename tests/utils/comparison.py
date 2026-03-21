@@ -160,7 +160,7 @@ def compare_results(actual: dict, expected: dict, calc_type: str) -> Tuple[bool,
                 messages.append(msg)
                 all_passed &= passed
 
-        for field in ['sf_spectrum', 'combined_spectrum']:
+        for field in ['sf_spectrum', 'delayedn_spectrum', 'combined_spectrum']:
             if field in expected:
                 passed, msg = compare_spectrum(
                     actual.get(field), expected.get(field), name=field

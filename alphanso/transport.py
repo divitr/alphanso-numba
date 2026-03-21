@@ -48,7 +48,7 @@ def _build_range_table(energies, stops):
 
 def _reverse_spectrum_results(results: dict) -> dict:
     """Reverse spectrum arrays to output in increasing energy order."""
-    spectrum_keys = ['an_spectrum', 'sf_spectrum', 'combined_spectrum',
+    spectrum_keys = ['an_spectrum', 'sf_spectrum', 'delayedn_spectrum', 'combined_spectrum',
                      'an_spectrum_absolute', 'gamma_spectrum', 'gamma_spectrum_absolute']
     bin_keys = ['neutron_energy_bins', 'spectrum_energy_bins', 'gamma_energy_bins']
 
@@ -867,6 +867,7 @@ class Transport(object):
         p_total_sf = 0.0
         spectrum_sf = np.zeros(len(neutron_energy_bins) - 1)
         p_total_dn = 0.0
+        spectrum_dn = np.zeros(len(neutron_energy_bins) - 1)
         sf_contributors = []
 
         for zaid, wtfrac in mass_fractions.items():
@@ -900,6 +901,12 @@ class Transport(object):
                     * atoms_per_gram
                 )
                 p_total_dn += dn_yield_nuclide
+                dn_spectrum_data = sf_params.get('dn_spectrum', [])
+                if dn_spectrum_data:
+                    dn_spec_binned = rebin_endf_spectrum(
+                        dn_spectrum_data, neutron_energy_bins
+                    )
+                    spectrum_dn += dn_yield_nuclide * dn_spec_binned
 
             if watt_a > 0.0 and watt_b > 0.0:
                 watt_spec = Transport._calculate_watt_spectrum(
@@ -937,6 +944,11 @@ class Transport(object):
             spectrum_sf_normalized = spectrum_sf / np.sum(spectrum_sf)
         else:
             spectrum_sf_normalized = spectrum_sf
+
+        if np.sum(spectrum_dn) > 0:
+            spectrum_dn_normalized = spectrum_dn / np.sum(spectrum_dn)
+        else:
+            spectrum_dn_normalized = spectrum_dn
 
         p_total_combined = p_total_an + p_total_sf
 
@@ -995,6 +1007,7 @@ class Transport(object):
                 spectrum_an,
                 np.ndarray) else spectrum_an,
             'sf_spectrum': spectrum_sf_normalized.tolist(),
+            'delayedn_spectrum': spectrum_dn_normalized.tolist(),
             'combined_spectrum': spectrum_combined.tolist() if isinstance(
                 spectrum_combined,
                 np.ndarray) else spectrum_combined,

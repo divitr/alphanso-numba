@@ -1086,6 +1086,173 @@ def _load_dn_yield_from_csv(zaid: int, data_dir=None) -> dict:
     return {'dn_per_fission': best['value']}
 
 
+_DN_SPECTRA_CACHE = {}
+
+
+def _parse_endf_float(s: str) -> float:
+    """Parse an ENDF-6 formatted float (e.g., '3.500755-2' → 0.035007)."""
+    s = s.strip()
+    if not s:
+        return 0.0
+    import re as _re
+    m = _re.match(r'^([+-]?\d*\.?\d+)([+-]\d+)$', s)
+    if m:
+        return float(m.group(1) + 'e' + m.group(2))
+    return float(s)
+
+
+def _read_endf_line_fields(line: str):
+    """Return the 6 data fields (11 chars each) from an ENDF-6 line."""
+    return [line[i * 11:(i + 1) * 11] for i in range(6)]
+
+
+def _parse_tab1(lines, pos):
+    """
+    Parse one TAB1 record from section_lines starting at pos (the CONT line).
+
+    Returns (pairs, new_pos) where pairs is [(x, y), ...] (NP entries).
+    """
+    import math
+    fields = _read_endf_line_fields(lines[pos])
+    try:
+        nr = int(fields[4].strip()) if fields[4].strip() else 0
+        np_ = int(fields[5].strip()) if fields[5].strip() else 0
+    except ValueError:
+        return [], pos + 1
+    pos += 1
+    pos += math.ceil(nr * 2 / 6) if nr > 0 else 0
+    np_lines = math.ceil(np_ * 2 / 6) if np_ > 0 else 0
+    all_vals = []
+    for _ in range(np_lines):
+        if pos >= len(lines):
+            break
+        for fv in _read_endf_line_fields(lines[pos]):
+            fv = fv.strip()
+            if fv:
+                all_vals.append(_parse_endf_float(fv))
+        pos += 1
+    pairs = [(all_vals[i], all_vals[i + 1])
+             for i in range(0, min(len(all_vals) - 1, np_ * 2 - 1), 2)]
+    return pairs, pos
+
+
+def _skip_tab1(lines, pos):
+    """Skip a TAB1 record and return the new position."""
+    _, new_pos = _parse_tab1(lines, pos)
+    return new_pos
+
+
+def _load_dn_spectra_from_endf(zaid: int, data_dir=None) -> list:
+    """
+    Load the aggregate delayed neutron energy spectrum from an ENDF/B-VIII.0
+    neutron sublibrary file (MF=5 MT=455).
+
+    Reads NK delayed-neutron groups.  Each group k has a constant fractional
+    contribution p_k and a tabulated spectrum g_k(E').  Returns the weighted
+    sum χ_d(E) = Σ p_k · g_k(E) as a sorted list of (E_MeV, intensity)
+    tuples, normalised to unit area.
+
+    Args:
+        zaid: ZAID identifier
+        data_dir: Decay data directory (uses default data root if None)
+
+    Returns:
+        List of (E_MeV, intensity) tuples, or [] if unavailable.
+    """
+    import glob
+
+    global _DN_SPECTRA_CACHE
+
+    if data_dir is not None:
+        data_dir_str = str(data_dir)
+        if data_dir_str.endswith('ENDFBVIII') or data_dir_str.endswith('gnds'):
+            decay_root = os.path.dirname(data_dir_str)
+        else:
+            decay_root = data_dir_str
+    else:
+        decay_root = os.path.join(_default_data_root(), 'decay')
+
+    endf_neutron_dir = os.path.join(decay_root, 'ENDF-B-VIII.0_neutrons')
+    z = zaid // 1000
+    a = zaid % 1000
+    pattern = os.path.join(endf_neutron_dir, f'n-{z:03d}_*_{a}.endf')
+    matches = glob.glob(pattern)
+    if not matches:
+        return []
+
+    filepath = matches[0]
+    if filepath in _DN_SPECTRA_CACHE:
+        return _DN_SPECTRA_CACHE[filepath]
+
+    try:
+        with open(filepath, 'r') as f:
+            all_lines = f.readlines()
+
+        section_lines = []
+        in_section = False
+        for line in all_lines:
+            if len(line) < 75:
+                continue
+            try:
+                mf = int(line[70:72].strip()) if line[70:72].strip() else 0
+                mt = int(line[72:75].strip()) if line[72:75].strip() else 0
+            except ValueError:
+                continue
+            if mf == 5 and mt == 455:
+                in_section = True
+                section_lines.append(line)
+            elif in_section:
+                break
+
+        if not section_lines:
+            _DN_SPECTRA_CACHE[filepath] = []
+            return []
+
+        header_fields = _read_endf_line_fields(section_lines[0])
+        try:
+            nk = int(header_fields[4].strip())
+        except (ValueError, IndexError):
+            _DN_SPECTRA_CACHE[filepath] = []
+            return []
+
+        pos = 1
+        aggregate = {}
+
+        for _ in range(nk):
+            if pos >= len(section_lines):
+                break
+
+            pk_pairs, pos = _parse_tab1(section_lines, pos)
+            pk = pk_pairs[0][1] if pk_pairs else 0.0
+
+            if pos >= len(section_lines):
+                break
+            pos = _skip_tab1(section_lines, pos)
+
+            if pos >= len(section_lines):
+                break
+            gk_pairs, pos = _parse_tab1(section_lines, pos)
+
+            for e_ev, g_val in gk_pairs:
+                if e_ev not in aggregate:
+                    aggregate[e_ev] = 0.0
+                aggregate[e_ev] += pk * g_val
+
+        result = sorted(
+            (e_ev / 1e6, intensity) for e_ev, intensity in aggregate.items()
+        )
+        total = sum(i for _, i in result)
+        if total > 0:
+            result = [(e, i / total) for e, i in result]
+
+        _DN_SPECTRA_CACHE[filepath] = result
+        return result
+
+    except Exception as e:
+        logger.debug(f"Could not load DN spectra from ENDF for ZAID {zaid}: {e}")
+        return []
+
+
 def _parse_endf_sf_data(filepath: str, zaid: int,
                         data_dir: Optional[os.PathLike] = None):
     """
@@ -1198,6 +1365,7 @@ def _parse_endf_sf_data(filepath: str, zaid: int,
             sf_strength = 0.0
 
         dn_data = _load_dn_yield_from_csv(zaid, data_dir)
+        dn_spectrum = _load_dn_spectra_from_endf(zaid, data_dir)
 
         params = {
             'decay_constant': decay_constant,
@@ -1207,6 +1375,7 @@ def _parse_endf_sf_data(filepath: str, zaid: int,
             'watt_b': 0.0,
             'avg_energy': avg_energy,
             'nu_d_delayed': nu_d_endf if nu_d_endf > 0.0 else dn_data.get('dn_per_fission', 0.0),
+            'dn_spectrum': dn_spectrum,
         }
 
         return sf_strength, spectrum, params
@@ -1286,6 +1455,7 @@ def _get_sf_data_with_yaml_nubar(zaid: int, return_params: bool = False):
         spectrum = []
 
         dn_data = _load_dn_yield_from_csv(zaid)
+        dn_spectrum = _load_dn_spectra_from_endf(zaid)
 
         params = {
             'decay_constant': decay_constant,
@@ -1295,6 +1465,7 @@ def _get_sf_data_with_yaml_nubar(zaid: int, return_params: bool = False):
             'watt_b': watt_b,
             'avg_energy': 0.0,
             'nu_d_delayed': dn_data.get('dn_per_fission', 0.0),
+            'dn_spectrum': dn_spectrum,
         }
 
         logger.info(

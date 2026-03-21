@@ -208,7 +208,6 @@ Uniform mixture of alpha-emitting isotopes and target materials.
 - `an_yield`: Alpha-n neutron yield (n/s/g)
 - `sf_yield`: Spontaneous fission prompt neutron yield (n/s/g)
 - `combined_yield`: Combined (alpha-n + SF) yield (n/s/g) - default output
-- `delayedn_strength`: Delayed neutron yield from spontaneous fission (n/s/g); zero if no SF nuclides or no nu_d data available
 - `an_spectrum`: Normalized alpha-n neutron spectrum
 - `sf_spectrum`: Normalized spontaneous fission neutron spectrum
 - `combined_spectrum`: Combined normalized neutron spectrum

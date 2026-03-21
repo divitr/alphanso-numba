@@ -154,7 +154,7 @@ def compare_results(actual: dict, expected: dict, calc_type: str) -> Tuple[bool,
 
     # Homogeneous-specific fields
     if calc_type == 'homogeneous':
-        for field in ['sf_yield', 'combined_yield']:
+        for field in ['sf_yield', 'combined_yield', 'delayedn_strength']:
             if field in expected:
                 passed, msg = compare_scalar(actual.get(field), expected.get(field), name=field)
                 messages.append(msg)

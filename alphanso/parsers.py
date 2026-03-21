@@ -962,6 +962,130 @@ def _load_sf_data_from_yaml(zaid: int,
         return {}
 
 
+_DN_YIELD_CACHE = {}
+
+
+def _load_dn_yield_from_csv(zaid: int, data_dir=None) -> dict:
+    """
+    Load delayed neutron yield from IAEA delayedn_yield.csv for a given ZAID.
+
+    Selects the best available nu_d value using:
+        - Spontaneous Fission entries for 252Cf (ZAID 98252)
+        - Neutron induced fission fast-spectrum entries for all other nuclides
+        - Minimum uncertainty criterion among candidate rows
+
+    Args:
+        zaid: ZAID identifier
+        data_dir: Directory containing decay data (uses default data root if None)
+
+    Returns:
+        Dictionary with:
+            'dn_per_fission': float - delayed neutrons per fission [n/fission]
+        Returns empty dict if ZAID not found or file unavailable.
+    """
+    import csv as csv_module
+
+    global _DN_YIELD_CACHE
+
+    if data_dir is not None:
+        data_dir_str = str(data_dir)
+        if data_dir_str.endswith('ENDFBVIII') or data_dir_str.endswith('gnds'):
+            csv_path = os.path.join(os.path.dirname(data_dir_str), 'delayedn_yield.csv')
+        else:
+            csv_path = os.path.join(data_dir_str, 'delayedn_yield.csv')
+    else:
+        csv_path = os.path.join(_default_data_root(), 'decay', 'delayedn_yield.csv')
+
+    if csv_path not in _DN_YIELD_CACHE:
+        if not os.path.exists(csv_path):
+            _DN_YIELD_CACHE[csv_path] = []
+        else:
+            try:
+                rows = []
+                with open(csv_path, 'r') as f:
+                    reader = csv_module.reader(f)
+                    next(reader)
+                    for row in reader:
+                        rows.append(row)
+                _DN_YIELD_CACHE[csv_path] = rows
+            except Exception as e:
+                logger.debug(f"Could not load delayedn_yield.csv: {e}")
+                _DN_YIELD_CACHE[csv_path] = []
+
+    rows = _DN_YIELD_CACHE.get(csv_path, [])
+    if not rows:
+        return {}
+
+    def parse_float(s):
+        if not s:
+            return None
+        s = s.strip().replace(',', '.')
+        try:
+            v = float(s)
+            return v if v > 0 else None
+        except (ValueError, TypeError):
+            return None
+
+    zaid_rows = []
+    for row in rows:
+        if len(row) < 7:
+            continue
+        try:
+            z = int(row[0].strip())
+            n = int(row[1].strip())
+            row_zaid = z * 1000 + z + n
+        except (ValueError, TypeError):
+            continue
+        if row_zaid != zaid:
+            continue
+        energy = row[4].strip() if len(row) > 4 else ''
+        reaction = row[6].strip() if len(row) > 6 else ''
+        total_yield = parse_float(row[7]) if len(row) > 7 else None
+        total_yield_unc = parse_float(row[8]) if len(row) > 8 else None
+        total_yield_adj = parse_float(row[9]) if len(row) > 9 else None
+        total_yield_adj_unc = parse_float(row[10]) if len(row) > 10 else None
+
+        best_value = total_yield_adj if total_yield_adj is not None else total_yield
+        best_unc = total_yield_adj_unc if total_yield_adj is not None else total_yield_unc
+
+        if best_value is None:
+            continue
+
+        zaid_rows.append({
+            'energy': energy,
+            'reaction': reaction,
+            'value': best_value,
+            'unc': best_unc,
+        })
+
+    if not zaid_rows:
+        return {}
+
+    if zaid == 98252:
+        sf_rows = [r for r in zaid_rows if 'Spontaneous Fission' in r['reaction']]
+        if sf_rows:
+            best = min(sf_rows, key=lambda r: r['unc'] if r['unc'] is not None else float('inf'))
+            return {'dn_per_fission': best['value']}
+
+    ni_rows = [r for r in zaid_rows if 'Neutron induced fission' in r['reaction']]
+    if not ni_rows:
+        return {}
+
+    fast_rows = [
+        r for r in ni_rows
+        if 'fast' in r['energy'].lower() or 'fission spectrum' in r['energy'].lower()
+    ]
+    candidate_rows = fast_rows if fast_rows else ni_rows
+
+    valid = [r for r in candidate_rows if r['unc'] is not None]
+    if valid:
+        best = min(valid, key=lambda r: r['unc'])
+    else:
+        best = candidate_rows[0]
+
+    return {'dn_per_fission': best['value']}
+
+
 def _parse_endf_sf_data(filepath: str, zaid: int,
                         data_dir: Optional[os.PathLike] = None):
     """
@@ -1005,6 +1129,7 @@ def _parse_endf_sf_data(filepath: str, zaid: int,
         sf_branching = float(sf_br_elem.get('value'))
 
         nubar = 0.0
+        nu_d_endf = 0.0
         spectrum = []
         avg_energy = 0.0
 
@@ -1019,6 +1144,14 @@ def _parse_endf_sf_data(filepath: str, zaid: int,
             )
             if nubar_match:
                 nubar = float(nubar_match.group(1))
+
+            nu_d_match = re.search(
+                r'DELAYED\s*=\s*([\d.]+)',
+                doc_text,
+                re.IGNORECASE
+            )
+            if nu_d_match:
+                nu_d_endf = float(nu_d_match.group(1))
 
             group_integrals_pattern = re.compile(
                 r'^\s*(\d+)\s+(\d+\.\d+)\s+(\d+\.\d+)\s+([\d\.]+[Ee][\+\-]?\d+)\s+[\d\.Ee][\+\-]?\d+',
@@ -1064,6 +1197,8 @@ def _parse_endf_sf_data(filepath: str, zaid: int,
         else:
             sf_strength = 0.0
 
+        dn_data = _load_dn_yield_from_csv(zaid, data_dir)
+
         params = {
             'decay_constant': decay_constant,
             'sf_branching': sf_branching,
@@ -1071,6 +1206,7 @@ def _parse_endf_sf_data(filepath: str, zaid: int,
             'watt_a': 0.0,
             'watt_b': 0.0,
             'avg_energy': avg_energy,
+            'nu_d_delayed': nu_d_endf if nu_d_endf > 0.0 else dn_data.get('dn_per_fission', 0.0),
         }
 
         return sf_strength, spectrum, params
@@ -1149,6 +1285,8 @@ def _get_sf_data_with_yaml_nubar(zaid: int, return_params: bool = False):
 
         spectrum = []
 
+        dn_data = _load_dn_yield_from_csv(zaid)
+
         params = {
             'decay_constant': decay_constant,
             'sf_branching': sf_branching,
@@ -1156,6 +1294,7 @@ def _get_sf_data_with_yaml_nubar(zaid: int, return_params: bool = False):
             'watt_a': watt_a,
             'watt_b': watt_b,
             'avg_energy': 0.0,
+            'nu_d_delayed': dn_data.get('dn_per_fission', 0.0),
         }
 
         logger.info(
@@ -1422,6 +1561,11 @@ def _parse_gnds_decay_data(
 
                                         alpha_spectrum.append(
                                             (energy_mev, intensity))
+
+    if alpha_spectrum:
+        total_intensity = sum(i for _, i in alpha_spectrum)
+        if total_intensity > 0.0:
+            alpha_spectrum = [(e, i / total_intensity) for e, i in alpha_spectrum]
 
     return alpha_decay_strength, alpha_spectrum
 

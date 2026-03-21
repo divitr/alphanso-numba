@@ -45,7 +45,10 @@ homogeneous_config = {
 }
 
 homogeneous_results = Transport.calculate(homogeneous_config)
-print(homogeneous_results)
+print(f"Alpha-n yield:        {homogeneous_results['an_yield']:.3e} n/s/g")
+print(f"SF prompt yield:      {homogeneous_results['sf_yield']:.3e} n/s/g")
+print(f"SF delayed yield:     {homogeneous_results['delayedn_strength']:.3e} n/s/g")
+print(f"Combined yield:       {homogeneous_results['combined_yield']:.3e} n/s/g")
 
 # --- Interface Calculation ---
 # This example demonstrates an interface calculation with Pu-238 source and Be-9 target.

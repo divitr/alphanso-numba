@@ -55,25 +55,22 @@ def read_in(config_path: Union[str, Path]) -> List[Dict[str, Any]]:
         try:
             with open(config_path, 'r') as f:
                 yaml_content = yaml.safe_load(f)
-
-            if yaml_content is None:
-                raise ValueError(f"Empty YAML file: {config_path}")
-
-            if isinstance(yaml_content, list):
-                for i, config in enumerate(yaml_content):
-                    if isinstance(config, dict):
-                        config['source'] = f"{config_path.stem}_{i+1}"
-                        configs.append(config)
-            elif isinstance(yaml_content, dict):
-                yaml_content['source'] = config_path.stem
-                configs.append(yaml_content)
-            else:
-                raise ValueError(
-                    f"Invalid YAML content in {config_path}: expected dict or list of dicts")
-
         except yaml.YAMLError as e:
-            raise yaml.YAMLError(
-                f"Failed to parse YAML file {config_path}: {e}")
+            raise yaml.YAMLError(f"Failed to parse YAML file {config_path}: {e}")
+
+        if yaml_content is None:
+            raise ValueError(f"Empty YAML file: {config_path}")
+        if isinstance(yaml_content, list):
+            for i, config in enumerate(yaml_content):
+                if isinstance(config, dict):
+                    config['source'] = f"{config_path.stem}_{i+1}"
+                    configs.append(config)
+        elif isinstance(yaml_content, dict):
+            yaml_content['source'] = config_path.stem
+            configs.append(yaml_content)
+        else:
+            raise ValueError(
+                f"Invalid YAML content in {config_path}: expected dict or list of dicts")
 
     elif config_path.is_dir():
         yaml_files = list(config_path.glob("*.yaml")) + \

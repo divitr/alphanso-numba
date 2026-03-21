@@ -101,6 +101,9 @@ class Transport(object):
                 config['neutron_energy_bins'][0],
                 config['neutron_energy_bins'][1],
                 int(config['neutron_energy_bins'][2]))
+        elif 'neutron_energy_bins' in config and isinstance(
+                config['neutron_energy_bins'], list):
+            config['neutron_energy_bins'] = np.array(config['neutron_energy_bins'], dtype=float)
 
         calc_type = config.get('calc_type')
 
@@ -863,6 +866,7 @@ class Transport(object):
 
         p_total_sf = 0.0
         spectrum_sf = np.zeros(len(neutron_energy_bins) - 1)
+        p_total_dn = 0.0
         sf_contributors = []
 
         for zaid, wtfrac in mass_fractions.items():
@@ -886,6 +890,16 @@ class Transport(object):
 
             sf_yield_nuclide = sf_strength * atoms_per_gram
             p_total_sf += sf_yield_nuclide
+
+            nu_d_delayed = sf_params.get('nu_d_delayed', 0.0)
+            if nu_d_delayed > 0.0:
+                dn_yield_nuclide = (
+                    sf_params.get('decay_constant', 0.0)
+                    * sf_params.get('sf_branching', 0.0)
+                    * nu_d_delayed
+                    * atoms_per_gram
+                )
+                p_total_dn += dn_yield_nuclide
 
             if watt_a > 0.0 and watt_b > 0.0:
                 watt_spec = Transport._calculate_watt_spectrum(
@@ -976,6 +990,7 @@ class Transport(object):
             'an_yield': float(p_total_an),
             'sf_yield': float(p_total_sf),
             'combined_yield': float(p_total_combined),
+            'delayedn_strength': float(p_total_dn),
             'an_spectrum': spectrum_an.tolist() if isinstance(
                 spectrum_an,
                 np.ndarray) else spectrum_an,

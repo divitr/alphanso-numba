@@ -17,7 +17,7 @@ from .parsers import (
     get_stopping_power,
     get_gamma_cascade_info)
 from .data_manager import ensure_data
-from .output_files import write_results_yaml
+from .output_files import normalize_results_payload, write_results_yaml
 from .utils import rebin_xs, get_composite_stopping, matdef_to_zaids, rebin_endf_spectrum
 
 logger = logging.getLogger(__name__)
@@ -76,6 +76,14 @@ def _reverse_spectrum_results(results: dict) -> dict:
     return results
 
 
+def _gamma_line_pairs(line_items) -> list:
+    """Convert gamma line pairs to built-in list pairs."""
+    return [
+        [float(energy), float(intensity)]
+        for energy, intensity in line_items
+    ]
+
+
 class Transport(object):
     @staticmethod
     def calculate(config: dict) -> dict:
@@ -115,6 +123,8 @@ class Transport(object):
             results = _reverse_spectrum_results(Transport._calculate_sandwich(config))
         else:
             raise ValueError(f"Unknown calculation type: {calc_type}")
+
+        results = normalize_results_payload(results)
 
         # Save results to files if output_dir is specified
         output_dir = config.get('output_dir')
@@ -468,7 +478,7 @@ class Transport(object):
         Returns:
             tuple: (total_gamma_yield, gamma_lines, gamma_spectrum)
                 - total_gamma_yield: float - Total gamma ray production rate
-                - gamma_lines: list - [(energy_MeV, intensity), ...] sorted discrete gamma lines
+                - gamma_lines: list - [[energy_MeV, intensity], ...] sorted discrete gamma lines
                 - gamma_spectrum: ndarray - Binned histogram of gamma intensities
 
         Algorithm:
@@ -534,7 +544,7 @@ class Transport(object):
             if not any_moved or np.sum(active_populations) <= 0:
                 break
 
-        gamma_lines = sorted(gamma_lines_dict.items())
+        gamma_lines = _gamma_line_pairs(sorted(gamma_lines_dict.items()))
         total_gamma_yield = sum(intensity for _, intensity in gamma_lines)
 
         gamma_spectrum = np.zeros(len(gamma_energy_bins) - 1)
@@ -582,7 +592,7 @@ class Transport(object):
                 - neutron_spectrum: ndarray - Normalized neutron spectrum
                 - neutron_energy_bins: ndarray - Energy bins for neutrons
                 - gamma_yield: float - Gamma yield per incident alpha (if gamma_energy_bins provided)
-                - gamma_lines: list - [(energy_MeV, intensity), ...] discrete gamma lines
+                - gamma_lines: list - [[energy_MeV, intensity], ...] discrete gamma lines
                 - gamma_spectrum: ndarray - Binned gamma spectrum
                 - gamma_energy_bins: ndarray - Energy bins for gammas
         """
@@ -718,7 +728,9 @@ class Transport(object):
                 'p': p * scale,
                 'spectrum': spectrum * scale,
                 'gamma_y': gamma_y * scale,
-                'gamma_lines': [(eg, ig * scale) for eg, ig in gamma_lines],
+                'gamma_lines': _gamma_line_pairs(
+                    (eg, ig * scale) for eg, ig in gamma_lines
+                ),
                 'gamma_spec': gamma_spec * scale if gamma_spec is not None else None,
             }
 
@@ -758,7 +770,7 @@ class Transport(object):
 
         if calculate_gammas:
             results['gamma_yield'] = total_gamma_yield
-            results['gamma_lines'] = sorted(total_gamma_lines.items())
+            results['gamma_lines'] = _gamma_line_pairs(sorted(total_gamma_lines.items()))
             results['gamma_spectrum'] = total_gamma_spectrum
             results['gamma_energy_bins'] = gamma_energy_bins
 
@@ -2017,7 +2029,7 @@ class Transport(object):
                 net = dict_entering.get(e, 0.0) - dict_exiting.get(e, 0.0)
                 if net > 1e-20:
                     net_lines_dict[e] = net
-            gamma_lines_per_layer.append(sorted(net_lines_dict.items()))
+            gamma_lines_per_layer.append(_gamma_line_pairs(sorted(net_lines_dict.items())))
 
         an_yield = yield_bc_c + sum(yield_per_layer)
 
@@ -2075,7 +2087,7 @@ class Transport(object):
             results['gamma_yield'] = float(gamma_yield_total)
             results['gamma_yield_target'] = float(gamma_yield_bc_c)
             results['gamma_yield_layers'] = [float(gy) for gy in gamma_yield_per_layer]
-            results['gamma_lines_target'] = gamma_lines_bc_c
+            results['gamma_lines_target'] = _gamma_line_pairs(gamma_lines_bc_c)
 
             final_lines_dict = defaultdict(float)
             for e, i in gamma_lines_bc_c:
@@ -2085,7 +2097,7 @@ class Transport(object):
                 for e, i in layer_lines:
                     final_lines_dict[e] += i
 
-            results['gamma_lines'] = sorted(final_lines_dict.items())
+            results['gamma_lines'] = _gamma_line_pairs(sorted(final_lines_dict.items()))
 
             if normalized_gamma_spectrum is not None:
                 results['gamma_spectrum'] = normalized_gamma_spectrum.tolist()

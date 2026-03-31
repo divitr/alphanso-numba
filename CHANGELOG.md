@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- MT=91 continuum (alpha,n) channel support: cross sections and tabulated neutron energy distributions are parsed from GNDS XML files and folded into yield and spectrum calculations
+- Kinematic box fallback for continuum channel when no tabulated neutron energy distribution is available
+
 ## [1.0.1] - 2026-03-27
 
 ### Changed

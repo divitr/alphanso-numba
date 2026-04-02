@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- MT=91 continuum (alpha,n) channel support: cross sections and tabulated neutron energy distributions are parsed from GNDS XML files and folded into yield and spectrum calculations
+- Kinematic box fallback for continuum channel when no tabulated neutron energy distribution is available
+
 ## [1.0.1] - 2026-03-27
 
 ### Changed
@@ -13,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Removed `numba` dependency; replaced `@njit`-decorated loops with vectorized NumPy operations
 - Unified CLI and Python file output around `results.yaml`
 - Removed the duplicate `output.yaml` artifact
+- Removed binned gamma spectrum output (`gamma_spectrum`, `gamma_energy_bins`, `gamma_spectrum_layers`); gamma results now use discrete line pairs only
 - Updated citation with arXiv preprint link ([arXiv:2603.17719](https://arxiv.org/abs/2603.17719))
 
 ## [1.0.0] - 2026-03-11
